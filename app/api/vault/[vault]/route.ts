@@ -18,11 +18,11 @@ const VAULT_PREFIX_MAP: Record<string, string> = {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ vault: string }> }
+  context: { params: Promise<{ vault: string }> }
 ) {
-  const { vault } = await params;
+  const { vault } = await context.params;
 
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
 
   const {
     data: { user },
