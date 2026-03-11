@@ -18,8 +18,10 @@ const VAULT_PREFIX_MAP: Record<string, string> = {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { vault: string } }
+  { params }: { params: Promise<{ vault: string }> }
 ) {
+  const { vault } = await params;
+
   const supabase = createSupabaseServerClient();
 
   const {
@@ -36,11 +38,11 @@ export async function GET(
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_active || !profile.vault_access?.[params.vault]) {
+  if (!profile?.is_active || !profile.vault_access?.[vault]) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const prefix = VAULT_PREFIX_MAP[params.vault];
+  const prefix = VAULT_PREFIX_MAP[vault];
   if (!prefix) {
     return NextResponse.json({ error: "Invalid vault" }, { status: 400 });
   }
@@ -53,9 +55,7 @@ export async function GET(
   );
 
   const files =
-    result.Contents?.filter(
-      (o) => o.Key && !o.Key.endsWith("/")
-    ).map((o) => ({
+    result.Contents?.filter((o) => o.Key && !o.Key.endsWith("/")).map((o) => ({
       key: o.Key!,
       name: o.Key!.split("/").pop()!,
     })) ?? [];
