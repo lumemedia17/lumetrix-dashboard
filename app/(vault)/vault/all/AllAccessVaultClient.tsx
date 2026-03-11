@@ -53,8 +53,11 @@ export default function AllAccessVaultClient() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push("/login");
-      else setLoading(false);
+      if (!data.user) {
+        router.push("/login");
+      } else {
+        setLoading(false);
+      }
     });
   }, [router]);
 
@@ -80,6 +83,7 @@ export default function AllAccessVaultClient() {
             found = {
               key: firstKey,
               name: firstKey.split("/").pop() ?? "Clip",
+              thumbKey: firstKey,
             };
             break;
           }
@@ -91,7 +95,9 @@ export default function AllAccessVaultClient() {
       setPreviews(result);
     }
 
-    if (!loading) load();
+    if (!loading) {
+      load();
+    }
   }, [loading]);
 
   if (loading) return null;
