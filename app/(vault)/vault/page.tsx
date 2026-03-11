@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
-export default async function VaultPage({ params }: { params: { vault: string } }) {
-  const supabase = createSupabaseServerClient();
+export default async function VaultPage({
+  params,
+}: {
+  params: Promise<{ vault: string }>;
+}) {
+  const { vault } = await params;
+  const supabase = await createSupabaseServerClient();
 
   const {
     data: { user },
@@ -16,7 +21,7 @@ export default async function VaultPage({ params }: { params: { vault: string } 
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_active || !profile?.vault_access?.[params.vault]) {
+  if (!profile?.is_active || !profile?.vault_access?.[vault]) {
     redirect("/pricing");
   }
 
