@@ -49,7 +49,6 @@ export default function AllAccessVaultPage() {
   const [loading, setLoading] = useState(true);
   const [previews, setPreviews] = useState<Record<string, VaultClip | null>>({});
 
-  // auth safety net (client-side only)
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
@@ -60,7 +59,6 @@ export default function AllAccessVaultPage() {
     });
   }, []);
 
-  // load preview clip per vault
   useEffect(() => {
     if (loading) return;
 
@@ -84,6 +82,7 @@ export default function AllAccessVaultPage() {
           if (key) {
             found = {
               key,
+              thumbKey: key,
               name: key.split("/").pop() ?? "Clip",
             };
             break;
@@ -103,25 +102,19 @@ export default function AllAccessVaultPage() {
 
   return (
     <main className="min-h-screen bg-black text-white px-6 py-10">
-      <h1 className="text-4xl font-extrabold mb-12">
-        All Access Vault
-      </h1>
+      <h1 className="text-4xl font-extrabold mb-12">All Access Vault</h1>
 
       <div className="space-y-20">
         {VAULTS.map((vault) => (
           <section key={vault.slug}>
-            <h2 className="text-2xl font-bold mb-6">
-              {vault.title}
-            </h2>
+            <h2 className="text-2xl font-bold mb-6">{vault.title}</h2>
 
             {previews[vault.slug] ? (
               <div className="max-w-xl">
                 <VaultClipCard clip={previews[vault.slug]!} />
               </div>
             ) : (
-              <p className="text-neutral-500 mb-6">
-                No clips available.
-              </p>
+              <p className="text-neutral-500 mb-6">No clips available.</p>
             )}
 
             <Link
