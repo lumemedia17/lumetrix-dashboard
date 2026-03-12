@@ -1,11 +1,8 @@
-// app/api/favorites/toggle/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  const supabase = await createSupabaseServerClient();
 
   const {
     data: { user },
@@ -23,7 +20,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing key" }, { status: 400 });
   }
 
-  // Check if favorite already exists
   const { data: existing, error: selectError } = await supabase
     .from("favorites")
     .select("id")
@@ -39,7 +35,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If exists → remove
   if (existing) {
     const { error: deleteError } = await supabase
       .from("favorites")
@@ -57,7 +52,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "removed" });
   }
 
-  // If not exists → add
   const { error: insertError } = await supabase
     .from("favorites")
     .insert({ user_id: user.id, s3_key: key });
