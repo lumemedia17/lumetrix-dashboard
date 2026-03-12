@@ -1,8 +1,6 @@
-// app/api/vault/all/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
@@ -17,24 +15,6 @@ const s3 = new S3Client({
 const BUCKET = process.env.AWS_BUCKET_NAME!;
 const VAULT_ORDER = ["luxury", "real-estate", "fitness"];
 
-function supabaseRoute() {
-  const cookieStore = cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // route handlers can set cookies, but not needed here
-        },
-      },
-    }
-  );
-}
-
 function titleFromVaultId(vaultId: string) {
   const base = vaultId
     .split("-")
@@ -46,38 +26,48 @@ function titleFromVaultId(vaultId: string) {
 
 export async function GET() {
   try {
-    // ✅ API ENFORCEMENT
-    const supabase = supabaseRoute();
+    const supabase = await createSupabaseServerClient();
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (userError || !user) {
       return NextResponse.json({ error: "Login required" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("is_active, vault_access, plan")
       .eq("id", user.id)
       .single();
 
-    if (!profile?.is_active) {
-      return NextResponse.json({ error: "Subscription required" }, { status: 403 });
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    // Optional: restrict this endpoint to all-access only
+    if (!profile?.is_active) {
+      return NextResponse.json(
+        { error: "Subscription required" },
+        { status: 403 }
+      );
+    }
+
     const hasAllAccess =
       profile.plan === "all" ||
       profile.vault_access?.all === true ||
-      (profile.vault_access?.luxury && profile.vault_access?.real_estate && profile.vault_access?.fitness);
+      (profile.vault_access?.luxury &&
+        profile.vault_access?.real_estate &&
+        profile.vault_access?.fitness);
 
     if (!hasAllAccess) {
-      return NextResponse.json({ error: "All Access required" }, { status: 403 });
+      return NextResponse.json(
+        { error: "All Access required" },
+        { status: 403 }
+      );
     }
 
-    // Now safe to list S3
     const root = await s3.send(
       new ListObjectsV2Command({
         Bucket: BUCKET,
@@ -85,7 +75,11 @@ export async function GET() {
       })
     );
 
-    const prefixes = root.CommonPrefixes?.map((p) => p.Prefix).filter(Boolean) as string[] | undefined;
+    const prefixes =
+      root.CommonPrefixes
+        ?.map((p) => p.Prefix)
+        .filter(Boolean) as string[] | undefined;
+
     const vaultPrefixes = prefixes ?? [];
 
     const vaults = await Promise.all(
@@ -101,7 +95,9 @@ export async function GET() {
           })
         );
 
-        const clipObj = res.Contents?.find((o) => o.Key && o.Key.toLowerCase().endsWith(".mp4"));
+        const clipObj = res.Contents?.find(
+          (o) => o.Key && o.Key.toLowerCase().endsWith(".mp4")
+        );
 
         return {
           id: vaultId,
@@ -110,7 +106,9 @@ export async function GET() {
             ? {
                 key: clipObj.Key,
                 name: clipObj.Key.split("/").pop() || clipObj.Key,
-                url: `/api/vault/file?key=${encodeURIComponent(clipObj.Key)}&mode=stream`,
+                url: `/api/vault/file?key=${encodeURIComponent(
+                  clipObj.Key
+                )}&mode=stream`,
               }
             : null,
         };
