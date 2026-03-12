@@ -1,5 +1,3 @@
-// app/api/favorites/list/route.ts
-
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
@@ -11,7 +9,6 @@ export async function GET() {
     error: userError,
   } = await supabase.auth.getUser();
 
-  // Not logged in → just return empty list
   if (userError || !user) {
     return NextResponse.json({ keys: [] });
   }
@@ -27,6 +24,5 @@ export async function GET() {
   }
 
   const keys = (data ?? []).map((row) => row.s3_key as string);
-
   return NextResponse.json({ keys });
 }
