@@ -10,6 +10,24 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 type PlanKey = "all" | "luxury";
 
+const ALLOWED_ORIGINS = new Set([
+  "https://lumetrixmedia.com",
+  "https://www.lumetrixmedia.com",
+]);
+
+function corsHeaders(origin: string | null) {
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.has(origin)
+      ? origin
+      : "https://lumetrixmedia.com";
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
 function getPriceId(plan: PlanKey): string {
   switch (plan) {
     case "all":
@@ -21,7 +39,17 @@ function getPriceId(plan: PlanKey): string {
   }
 }
 
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get("origin");
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(origin),
+  });
+}
+
 export async function POST(req: Request) {
+  const origin = req.headers.get("origin");
+
   try {
     const { plan, email } = (await req.json()) as {
       plan: PlanKey;
@@ -29,7 +57,13 @@ export async function POST(req: Request) {
     };
 
     if (!plan) {
-      return NextResponse.json({ error: "Missing plan" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing plan" },
+        {
+          status: 400,
+          headers: corsHeaders(origin),
+        }
+      );
     }
 
     const priceId = getPriceId(plan);
@@ -46,24 +80,29 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-
       success_url: `${appUrl}/finish-setup?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${marketingUrl}/pricing`,
-
       metadata: {
         plan,
       },
-
       customer_email: email ?? undefined,
     });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json(
+      { url: session.url },
+      {
+        headers: corsHeaders(origin),
+      }
+    );
   } catch (err) {
     console.error("Error in /api/checkout:", err);
 
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: corsHeaders(origin),
+      }
     );
   }
 }
