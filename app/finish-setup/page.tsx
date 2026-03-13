@@ -3,7 +3,13 @@ import FinishSetupClient from "./FinishSetupClient";
 
 export default function FinishSetupPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+          Checking payment...
+        </div>
+      }
+    >
       <FinishSetupClient />
     </Suspense>
   );
