@@ -34,10 +34,12 @@ export async function POST(req: Request) {
 
     const priceId = getPriceId(plan);
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+    const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL!;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
-
       line_items: [
         {
           price: priceId,
@@ -45,21 +47,17 @@ export async function POST(req: Request) {
         },
       ],
 
-      // Stripe → Finish Setup page
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/finish-setup?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
+      success_url: `${appUrl}/finish-setup?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${marketingUrl}/pricing`,
 
-      // Store plan so finish-setup knows what access to give
       metadata: {
         plan,
       },
 
-      // Optional email prefill
       customer_email: email ?? undefined,
     });
 
     return NextResponse.json({ url: session.url });
-
   } catch (err) {
     console.error("Error in /api/checkout:", err);
 
