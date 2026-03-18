@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export async function requireVaultAccess(
-  vault: "luxury" | "fitness" | "real_estate" | "all"
+  vault: "luxury" | "fitness" | ""real-estate"" | "all"
 ) {
   const supabase = await createSupabaseServerClient();
 

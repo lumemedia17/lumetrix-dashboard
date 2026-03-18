@@ -53,7 +53,7 @@ export default function DashboardPage() {
         return;
       }
 
-      if (plan === "real-estate" || access.real_estate === true) {
+      if (plan === "real-estate" || access."real-estate" === true) {
         router.replace("/vault/real-estate");
         return;
       }

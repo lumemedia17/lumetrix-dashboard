@@ -3,11 +3,6 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-/*
- SAFETY: Do NOT assume env vars exist.
- We validate them so the route does not crash silently.
-*/
-
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const PRICE_ALL = process.env.STRIPE_PRICE_ALL;
 const PRICE_LUXURY = process.env.STRIPE_PRICE_LUXURY;
@@ -24,9 +19,6 @@ const stripe = new Stripe(STRIPE_SECRET_KEY, {
 
 type PlanKey = "all" | "luxury";
 
-/*
- Allowed origins for the landing page
-*/
 const ALLOWED_ORIGINS = new Set([
   "https://lumetrixmedia.com",
   "https://www.lumetrixmedia.com",
@@ -45,9 +37,6 @@ function corsHeaders(origin: string | null) {
   };
 }
 
-/*
- Determine which Stripe price to use
-*/
 function getPriceId(plan: PlanKey) {
   if (plan === "all") {
     if (!PRICE_ALL) throw new Error("Missing STRIPE_PRICE_ALL");
@@ -62,9 +51,6 @@ function getPriceId(plan: PlanKey) {
   throw new Error("Invalid plan");
 }
 
-/*
- CORS preflight
-*/
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
 
@@ -74,9 +60,6 @@ export async function OPTIONS(req: Request) {
   });
 }
 
-/*
- Checkout creation
-*/
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
 
@@ -105,24 +88,19 @@ export async function POST(req: Request) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-
       payment_method_types: ["card"],
-
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-
       success_url: `${APP_URL}/finish-setup?session_id={CHECKOUT_SESSION_ID}`,
-
       cancel_url: `${MARKETING_URL}/pricing`,
-
       metadata: {
         plan,
       },
-
+      client_reference_id: plan,
       customer_email: email,
     });
 

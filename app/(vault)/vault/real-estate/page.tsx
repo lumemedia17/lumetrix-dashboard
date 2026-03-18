@@ -23,7 +23,7 @@ export default async function Page() {
   const ok =
     profile.plan === "real-estate" ||
     profile.plan === "all" ||
-    profile.vault_access?.real_estate === true;
+    profile.vault_access?."real-estate" === true;
 
   if (!ok) redirect("/pricing");
 

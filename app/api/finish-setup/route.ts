@@ -1,4 +1,3 @@
-// app/api/finish-setup/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -11,93 +10,297 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 );
 
-type PlanKey = "all" | "luxury";
+type PlanKey = "all" | "luxury" | "real-estate" | "fitness";
+
+function normalizePlan(value: string | null | undefined): PlanKey | null {
+  if (!value) return null;
+
+  const v = value.toLowerCase().trim();
+
+  if (v === "all" || v === "all-access" || v === "all_access") return "all";
+  if (v === "luxury") return "luxury";
+  if (v === "real-estate" || v === ""real-estate"" || v === "realestate") return "real-estate";
+  if (v === "fitness") return "fitness";
+
+  return null;
+}
 
 function buildVaultAccess(plan: PlanKey) {
   if (plan === "all") {
-    return { all: true, luxury: true, "real-estate": true, fitness: true };
+    return {
+      all: true,
+      luxury: true,
+      "real-estate": true,
+      fitness: true,
+    };
   }
+
   if (plan === "luxury") {
-    return { luxury: true };
+    return {
+      luxury: true,
+    };
   }
+
+  if (plan === "real-estate") {
+    return {
+      "real-estate": true,
+    };
+  }
+
+  if (plan === "fitness") {
+    return {
+      fitness: true,
+    };
+  }
+
   return {};
+}
+
+function getRedirectPath(plan: PlanKey) {
+  if (plan === "all") return "/vault/all";
+  if (plan === "luxury") return "/vault/luxury";
+  if (plan === "real-estate") return "/vault/real-estate";
+  if (plan === "fitness") return "/vault/fitness";
+  return "/vault/all";
+}
+
+async function findPendingPurchase(sessionId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("pending_purchases")
+    .select("*")
+    .eq("checkout_session_id", sessionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to read pending purchase: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function upsertPendingPurchaseFromStripe(sessionId: string) {
+  const stripeSession = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["subscription", "customer"],
+  });
+
+  const paymentComplete =
+    stripeSession.status === "complete" &&
+    (stripeSession.payment_status === "paid" || stripeSession.mode === "subscription");
+
+  if (!paymentComplete) {
+    return { ready: false };
+  }
+
+  const plan =
+    normalizePlan(stripeSession.metadata?.plan) ||
+    normalizePlan(
+      typeof stripeSession.client_reference_id === "string"
+        ? stripeSession.client_reference_id
+        : null
+    );
+
+  if (!plan) {
+    throw new Error("Could not determine purchased plan from Stripe session.");
+  }
+
+  const stripeCustomerId =
+    typeof stripeSession.customer === "string"
+      ? stripeSession.customer
+      : stripeSession.customer?.id ?? null;
+
+  const stripeSubscriptionId =
+    typeof stripeSession.subscription === "string"
+      ? stripeSession.subscription
+      : stripeSession.subscription?.id ?? null;
+
+  const paidEmail =
+    stripeSession.customer_details?.email ||
+    stripeSession.customer_email ||
+    null;
+
+  const payload = {
+    checkout_session_id: stripeSession.id,
+    stripe_customer_id: stripeCustomerId,
+    stripe_subscription_id: stripeSubscriptionId,
+    plan,
+    status: "ready",
+    email: paidEmail,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabaseAdmin
+    .from("pending_purchases")
+    .upsert(payload, { onConflict: "checkout_session_id" });
+
+  if (error) {
+    throw new Error(`Failed to upsert pending purchase: ${error.message}`);
+  }
+
+  return { ready: true };
 }
 
 export async function POST(req: Request) {
   try {
-    const { session_id, email, password } = (await req.json()) as {
-      session_id: string;
-      email: string;
-      password: string;
-    };
+    const body = await req.json();
 
-    if (!session_id || !email || !password) {
-      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    const session_id = body?.session_id as string | undefined;
+    const check_only = Boolean(body?.check_only);
+    const emailInput = (body?.email as string | undefined)?.trim().toLowerCase();
+    const password = body?.password as string | undefined;
+
+    if (!session_id) {
+      return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
     }
 
-    // 1) Look up the pending purchase created by the webhook
-    const { data: pending, error: pendingErr } = await supabaseAdmin
-      .from("pending_purchases")
-      .select("*")
-      .eq("checkout_session_id", session_id)
-      .eq("status", "pending")
-      .single();
+    let pending = await findPendingPurchase(session_id);
 
-    // If webhook is delayed, fall back to Stripe check (optional but helpful)
-    if (pendingErr || !pending) {
-      const stripeSession = await stripe.checkout.sessions.retrieve(session_id);
+    if (!pending) {
+      try {
+        const repaired = await upsertPendingPurchaseFromStripe(session_id);
+        if (repaired.ready) {
+          pending = await findPendingPurchase(session_id);
+        }
+      } catch (err) {
+        console.error("Stripe fallback recovery failed:", err);
+      }
+    }
 
-      if (stripeSession.payment_status !== "paid") {
-        return NextResponse.json({ error: "Invalid or unpaid session" }, { status: 403 });
+    if (check_only) {
+      if (!pending) {
+        return NextResponse.json(
+          { error: "Payment processing. Please retry in a few seconds." },
+          { status: 409 }
+        );
       }
 
-      // Still paid, but webhook hasn't written pending yet
+      return NextResponse.json({
+        ok: true,
+        ready: true,
+        email: pending.email ?? null,
+        plan: pending.plan ?? null,
+        status: pending.status ?? null,
+      });
+    }
+
+    if (!emailInput || !password) {
+      return NextResponse.json(
+        { error: "Missing email or password." },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (!pending) {
       return NextResponse.json(
         { error: "Payment processing. Please retry in a few seconds." },
         { status: 409 }
       );
     }
 
-    const plan = pending.plan as PlanKey;
-    const stripeCustomerId = pending.stripe_customer_id as string;
-    const stripeSubscriptionId = pending.stripe_subscription_id as string;
-
-    if (!plan || !stripeCustomerId || !stripeSubscriptionId) {
-      return NextResponse.json({ error: "Pending purchase missing required data" }, { status: 400 });
+    if (pending.completed_at) {
+      const existingPlan = normalizePlan(pending.plan) || "all";
+      return NextResponse.json({
+        ok: true,
+        redirectTo: getRedirectPath(existingPlan),
+      });
     }
 
-    // 2) Create Supabase user
-    const { data: created, error: createErr } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-      });
+    const plan = normalizePlan(pending.plan);
 
-    if (createErr || !created.user) {
+    if (!plan) {
       return NextResponse.json(
-        { error: createErr?.message || "Auth create failed" },
+        { error: "Invalid plan on pending purchase." },
         { status: 400 }
       );
     }
 
-    const userId = created.user.id;
+    const stripeCustomerId = pending.stripe_customer_id as string | null;
+    const stripeSubscriptionId = pending.stripe_subscription_id as string | null;
+    const finalEmail = emailInput || pending.email;
 
-    // 3) Write access into profiles (source of truth for your app access)
+    if (!finalEmail) {
+      return NextResponse.json(
+        { error: "No email found for this purchase." },
+        { status: 400 }
+      );
+    }
+
+    const { data: listData, error: listError } =
+      await supabaseAdmin.auth.admin.listUsers();
+
+    if (listError) {
+      return NextResponse.json(
+        { error: `Could not verify existing users: ${listError.message}` },
+        { status: 500 }
+      );
+    }
+
+    const existingUser = listData.users.find(
+      (u) => u.email?.toLowerCase() === finalEmail.toLowerCase()
+    );
+
+    let userId: string;
+
+    if (existingUser) {
+      userId = existingUser.id;
+
+      const { error: updateUserError } =
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password,
+          email_confirm: true,
+        });
+
+      if (updateUserError) {
+        return NextResponse.json(
+          { error: updateUserError.message || "Failed to update existing user." },
+          { status: 500 }
+        );
+      }
+    } else {
+      const { data: created, error: createErr } =
+        await supabaseAdmin.auth.admin.createUser({
+          email: finalEmail,
+          password,
+          email_confirm: true,
+        });
+
+      if (createErr || !created.user) {
+        return NextResponse.json(
+          { error: createErr?.message || "Auth create failed" },
+          { status: 400 }
+        );
+      }
+
+      userId = created.user.id;
+    }
+
     const { error: profileErr } = await supabaseAdmin
       .from("profiles")
       .upsert(
         {
           id: userId,
-          email,
+          email: finalEmail,
           plan,
           is_active: true,
           vault_access: buildVaultAccess(plan),
           stripe_customer_id: stripeCustomerId,
           stripe_subscription_id: stripeSubscriptionId,
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
       );
@@ -106,14 +309,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileErr.message }, { status: 400 });
     }
 
-    // 4) Mark pending purchase as completed so it can't be reused
     const { error: doneErr } = await supabaseAdmin
       .from("pending_purchases")
       .update({
         status: "completed",
-        // OPTIONAL if you have these columns:
-        // user_id: userId,
-        // email: email,
+        user_id: userId,
+        email: finalEmail,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq("checkout_session_id", session_id);
 
@@ -121,7 +324,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: doneErr.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, userId });
+    return NextResponse.json({
+      ok: true,
+      userId,
+      redirectTo: getRedirectPath(plan),
+    });
   } catch (err) {
     console.error("finish-setup error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

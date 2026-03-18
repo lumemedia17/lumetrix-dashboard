@@ -58,7 +58,7 @@ export async function GET() {
       profile.plan === "all" ||
       profile.vault_access?.all === true ||
       (profile.vault_access?.luxury &&
-        profile.vault_access?.real_estate &&
+        profile.vault_access?."real-estate" &&
         profile.vault_access?.fitness);
 
     if (!hasAllAccess) {

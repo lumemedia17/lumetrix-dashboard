@@ -25,13 +25,19 @@ type PlanKey = "all" | "luxury" | "real-estate" | "fitness";
 function buildVaultAccess(plan: PlanKey) {
   switch (plan) {
     case "all":
-      return { all: true, luxury: true, real_estate: true, fitness: true };
+      return { all: true, luxury: true, "real-estate": true, fitness: true };
+
     case "luxury":
       return { luxury: true };
+
     case "real-estate":
-      return { real_estate: true };
+      return { "real-estate": true };
+
     case "fitness":
       return { fitness: true };
+
+    default:
+      return {};
   }
 }
 
@@ -126,7 +132,7 @@ export async function POST(req: Request) {
         const planMap: Record<string, PlanKey> = {
           [process.env.STRIPE_PRICE_ALL!]: "all",
           [process.env.STRIPE_PRICE_LUXURY!]: "luxury",
-          [process.env.STRIPE_PRICE_REAL_ESTATE!]: "real-estate",
+          [process.env.STRIPE_PRICE_"real-estate"!]: "real-estate",
           [process.env.STRIPE_PRICE_FITNESS!]: "fitness",
         };
 
