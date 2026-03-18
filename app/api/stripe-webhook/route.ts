@@ -1,23 +1,22 @@
-// app/api/stripe-webhook/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-/**
- * Stripe
- */
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-10-29.clover",
 });
 
-/**
- * Supabase Admin (SERVICE ROLE – SERVER ONLY)
- */
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 );
 
 type PlanKey = "all" | "luxury" | "real-estate" | "fitness";
@@ -26,16 +25,12 @@ function buildVaultAccess(plan: PlanKey) {
   switch (plan) {
     case "all":
       return { all: true, luxury: true, "real-estate": true, fitness: true };
-
     case "luxury":
       return { luxury: true };
-
     case "real-estate":
       return { "real-estate": true };
-
     case "fitness":
       return { fitness: true };
-
     default:
       return {};
   }
@@ -58,17 +53,12 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
-    console.error("❌ Webhook signature error:", err.message);
+    console.error("Webhook signature error:", err.message);
     return new NextResponse("Invalid signature", { status: 400 });
   }
 
   try {
     switch (event.type) {
-      /**
-       * ✅ FIRST PURCHASE (PAY-FIRST FLOW)
-       * Store paid checkout session as pending.
-       * Do NOT update profiles here, because the user account does not exist yet.
-       */
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
 
@@ -88,7 +78,7 @@ export async function POST(req: Request) {
           null;
 
         if (!plan || !stripeCustomerId || !stripeSubscriptionId) {
-          console.warn("⚠️ Missing required data on checkout.session.completed", {
+          console.warn("Missing required data on checkout.session.completed", {
             plan,
             stripeCustomerId,
             stripeSubscriptionId,
@@ -104,24 +94,21 @@ export async function POST(req: Request) {
               stripe_customer_id: stripeCustomerId,
               stripe_subscription_id: stripeSubscriptionId,
               plan,
-              status: "pending",
-              email, // remove this line if your table does NOT have an email column
+              status: "ready",
+              email,
+              updated_at: new Date().toISOString(),
             },
             { onConflict: "checkout_session_id" }
           );
 
         if (error) {
-          console.error("❌ Failed to write pending purchase:", error);
+          console.error("Failed to write pending purchase:", error);
           throw error;
         }
 
         break;
       }
 
-      /**
-       * 🔄 PLAN CHANGE / STATUS UPDATE
-       * This still updates existing user profiles AFTER account creation.
-       */
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string | undefined;
@@ -132,7 +119,7 @@ export async function POST(req: Request) {
         const planMap: Record<string, PlanKey> = {
           [process.env.STRIPE_PRICE_ALL!]: "all",
           [process.env.STRIPE_PRICE_LUXURY!]: "luxury",
-          [process.env.STRIPE_PRICE_"real-estate"!]: "real-estate",
+          [process.env.STRIPE_PRICE_REAL_ESTATE!]: "real-estate",
           [process.env.STRIPE_PRICE_FITNESS!]: "fitness",
         };
 
@@ -145,15 +132,13 @@ export async function POST(req: Request) {
             plan: newPlan,
             is_active: true,
             vault_access: buildVaultAccess(newPlan),
+            updated_at: new Date().toISOString(),
           })
           .eq("stripe_customer_id", customerId);
 
         break;
       }
 
-      /**
-       * ❌ PAYMENT FAILED
-       */
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string | undefined;
@@ -164,6 +149,7 @@ export async function POST(req: Request) {
           .update({
             is_active: false,
             vault_access: {},
+            updated_at: new Date().toISOString(),
           })
           .eq("stripe_customer_id", customerId);
 
@@ -174,7 +160,7 @@ export async function POST(req: Request) {
         break;
     }
   } catch (err) {
-    console.error("❌ Webhook handler error:", err);
+    console.error("Webhook handler error:", err);
     return new NextResponse("Webhook handler failed", { status: 500 });
   }
 

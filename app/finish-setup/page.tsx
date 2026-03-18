@@ -5,7 +5,7 @@ export default function FinishSetupPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center">
           Checking payment...
         </div>
       }

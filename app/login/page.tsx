@@ -1,18 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LogIn, ArrowLeft } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const prefill = searchParams.get("prefill");
+    if (prefill) {
+      setEmail(prefill);
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -30,72 +38,88 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/vault/all");
+    router.replace("/vault/all");
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 mb-6">
-            <LogIn className="w-8 h-8 text-[#D4AF37]" />
-          </div>
-
-          <h1 className="text-4xl font-black mb-2">Welcome Back</h1>
-          <p className="text-[#B3B3B3]">Sign in to access your vaults</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
+    <div className="min-h-screen bg-[#050505] text-white px-6">
+      <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center">
+        <div className="w-full max-w-md animate-[fadeIn_0.8s_ease-out]">
+          <div className="mb-8 text-center">
+            <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5">
+              <LogIn className="h-8 w-8 text-[#D4AF37]" />
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-bold mb-2">Email</label>
-            <input
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="your@email.com"
-              className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 focus:border-[#D4AF37]/50 focus:outline-none transition-colors"
-            />
+            <h1 className="mb-2 text-4xl font-black">Welcome Back</h1>
+            <p className="text-[#B3B3B3]">Sign in to access your vaults</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-bold mb-2">Password</label>
-            <input
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 focus:border-[#D4AF37]/50 focus:outline-none transition-colors"
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+                {error}
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-6 py-4 rounded-full bg-[#D4AF37] text-black font-black hover:bg-[#F1D27A] transition-all duration-300 shadow-xl shadow-[#D4AF37]/40 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
+            <div>
+              <label className="mb-2 block text-sm font-bold">Email</label>
+              <input
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="your@email.com"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white transition-colors focus:border-[#D4AF37]/50 focus:outline-none"
+              />
+            </div>
 
-          <div className="text-center">
-            <Link
-              href="https://lumetrixmedia.com"
-              className="text-[#B3B3B3] hover:text-white transition-colors text-sm"
+            <div>
+              <label className="mb-2 block text-sm font-bold">Password</label>
+              <input
+                name="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white transition-colors focus:border-[#D4AF37]/50 focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full bg-[#D4AF37] px-6 py-4 text-black font-black shadow-xl shadow-[#D4AF37]/40 transition-all duration-300 hover:bg-[#F1D27A] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ← Back to home
-            </Link>
-          </div>
-        </form>
+              {loading ? "Signing In..." : "Log In"}
+            </button>
+
+            <div className="text-center">
+              <Link
+                href="https://lumetrixmedia.com"
+                className="inline-flex items-center gap-2 text-sm text-[#B3B3B3] transition-colors hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to home
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
+
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

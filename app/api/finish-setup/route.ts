@@ -28,7 +28,7 @@ function normalizePlan(value: string | null | undefined): PlanKey | null {
 
   if (v === "all" || v === "all-access" || v === "all_access") return "all";
   if (v === "luxury") return "luxury";
-  if (v === "real-estate" || v === ""real-estate"" || v === "realestate") return "real-estate";
+  if (v === "real-estate" || v === '"real-estate"' || v === "realestate") return "real-estate";
   if (v === "fitness") return "fitness";
 
   return null;
@@ -87,7 +87,7 @@ async function findPendingPurchase(sessionId: string) {
   return data;
 }
 
-async function upsertPendingPurchaseFromStripe(sessionId: string) {
+async function hydratePendingPurchaseFromStripe(sessionId: string) {
   const stripeSession = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ["subscription", "customer"],
   });
@@ -97,7 +97,7 @@ async function upsertPendingPurchaseFromStripe(sessionId: string) {
     (stripeSession.payment_status === "paid" || stripeSession.mode === "subscription");
 
   if (!paymentComplete) {
-    return { ready: false };
+    return { ready: false, email: null as string | null };
   }
 
   const plan =
@@ -145,7 +145,7 @@ async function upsertPendingPurchaseFromStripe(sessionId: string) {
     throw new Error(`Failed to upsert pending purchase: ${error.message}`);
   }
 
-  return { ready: true };
+  return { ready: true, email: paidEmail };
 }
 
 export async function POST(req: Request) {
@@ -165,12 +165,23 @@ export async function POST(req: Request) {
 
     if (!pending) {
       try {
-        const repaired = await upsertPendingPurchaseFromStripe(session_id);
+        const repaired = await hydratePendingPurchaseFromStripe(session_id);
         if (repaired.ready) {
           pending = await findPendingPurchase(session_id);
         }
       } catch (err) {
         console.error("Stripe fallback recovery failed:", err);
+      }
+    }
+
+    if (pending && !pending.email) {
+      try {
+        const repaired = await hydratePendingPurchaseFromStripe(session_id);
+        if (repaired.ready) {
+          pending = await findPendingPurchase(session_id);
+        }
+      } catch (err) {
+        console.error("Stripe email hydration failed:", err);
       }
     }
 
@@ -231,7 +242,7 @@ export async function POST(req: Request) {
 
     const stripeCustomerId = pending.stripe_customer_id as string | null;
     const stripeSubscriptionId = pending.stripe_subscription_id as string | null;
-    const finalEmail = emailInput || pending.email;
+    const finalEmail = (emailInput || pending.email || "").toLowerCase();
 
     if (!finalEmail) {
       return NextResponse.json(
