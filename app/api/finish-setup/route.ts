@@ -28,7 +28,7 @@ function normalizePlan(value: string | null | undefined): PlanKey | null {
 
   if (v === "all" || v === "all-access" || v === "all_access") return "all";
   if (v === "luxury") return "luxury";
-  if (v === "real-estate" || v === '"real-estate"' || v === "realestate") return "real-estate";
+  if (v === "real-estate" || v === "real_estate" || v === "realestate") return "real-estate";
   if (v === "fitness") return "fitness";
 
   return null;

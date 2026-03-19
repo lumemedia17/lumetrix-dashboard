@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Crown, ArrowLeft } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 export default function FinishSetupClient() {
@@ -172,14 +171,13 @@ export default function FinishSetupClient() {
             href="https://lumetrixmedia.com"
             className="mb-6 inline-flex items-center gap-2 text-sm text-[#B3B3B3] transition-colors hover:text-white"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to home
+            ← Back to home
           </a>
 
           <div className="rounded-[28px] border border-white/10 bg-black p-8 shadow-2xl">
             <div className="mb-8 text-center">
               <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5">
-                <Crown className="h-8 w-8 text-[#D4AF37]" />
+                <span className="text-2xl font-black text-[#D4AF37]">L</span>
               </div>
 
               <h1 className="mb-2 text-4xl font-black">Finish Setup</h1>

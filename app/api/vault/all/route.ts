@@ -15,6 +15,12 @@ const s3 = new S3Client({
 const BUCKET = process.env.AWS_BUCKET_NAME!;
 const VAULT_ORDER = ["luxury", "real-estate", "fitness"];
 
+type Profile = {
+  is_active: boolean | null;
+  vault_access: Record<string, boolean> | null;
+  plan: string | null;
+};
+
 function titleFromVaultId(vaultId: string) {
   const base = vaultId
     .split("-")
@@ -47,7 +53,9 @@ export async function GET() {
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    if (!profile?.is_active) {
+    const p = profile as Profile | null;
+
+    if (!p?.is_active) {
       return NextResponse.json(
         { error: "Subscription required" },
         { status: 403 }
@@ -55,11 +63,11 @@ export async function GET() {
     }
 
     const hasAllAccess =
-      profile.plan === "all" ||
-      profile.vault_access?.all === true ||
-      (profile.vault_access?.luxury &&
-        profile.vault_access?."real-estate" &&
-        profile.vault_access?.fitness);
+      p.plan === "all" ||
+      p.vault_access?.all === true ||
+      (p.vault_access?.luxury === true &&
+        p.vault_access?.["real-estate"] === true &&
+        p.vault_access?.fitness === true);
 
     if (!hasAllAccess) {
       return NextResponse.json(

@@ -2,9 +2,14 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import RealEstateVaultClient from "./RealEstateVaultClient";
 
+type Profile = {
+  plan: string | null;
+  is_active: boolean | null;
+  vault_access: Record<string, boolean> | null;
+};
+
 export default async function Page() {
   const supabase = await createSupabaseServerClient();
-
 
   const {
     data: { user },
@@ -18,12 +23,14 @@ export default async function Page() {
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_active) redirect("/pricing");
+  const p = profile as Profile | null;
+
+  if (!p?.is_active) redirect("/pricing");
 
   const ok =
-    profile.plan === "real-estate" ||
-    profile.plan === "all" ||
-    profile.vault_access?."real-estate" === true;
+    p.plan === "real-estate" ||
+    p.plan === "all" ||
+    p.vault_access?.["real-estate"] === true;
 
   if (!ok) redirect("/pricing");
 

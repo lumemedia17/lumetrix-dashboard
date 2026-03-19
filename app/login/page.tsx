@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, ArrowLeft } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
@@ -17,9 +16,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const prefill = searchParams.get("prefill");
-    if (prefill) {
-      setEmail(prefill);
-    }
+    if (prefill) setEmail(prefill);
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -47,7 +44,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md animate-[fadeIn_0.8s_ease-out]">
           <div className="mb-8 text-center">
             <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5">
-              <LogIn className="h-8 w-8 text-[#D4AF37]" />
+              <span className="text-2xl font-black text-[#D4AF37]">L</span>
             </div>
 
             <h1 className="mb-2 text-4xl font-black">Welcome Back</h1>
@@ -98,10 +95,9 @@ export default function LoginPage() {
             <div className="text-center">
               <Link
                 href="https://lumetrixmedia.com"
-                className="inline-flex items-center gap-2 text-sm text-[#B3B3B3] transition-colors hover:text-white"
+                className="text-sm text-[#B3B3B3] transition-colors hover:text-white"
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back to home
+                ← Back to home
               </Link>
             </div>
           </form>
