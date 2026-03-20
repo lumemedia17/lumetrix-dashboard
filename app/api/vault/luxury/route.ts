@@ -20,14 +20,13 @@ const BUCKET =
   "";
 
 function mp4ToThumbKey(mp4Key: string) {
-  return mp4Key
-    .replace(/^luxury\//, "thumbs/luxury/")
-    .replace(/\.mp4$/i, ".jpg");
+  return mp4Key.replace(/^luxury\//, "thumbs/luxury/").replace(/\.mp4$/i, ".jpg");
 }
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
+
   if (!category) return NextResponse.json([]);
 
   if (!BUCKET) {
@@ -43,6 +42,7 @@ export async function GET(req: Request) {
     new ListObjectsV2Command({
       Bucket: BUCKET,
       Prefix,
+      MaxKeys: 200,
     })
   );
 
@@ -58,5 +58,9 @@ export async function GET(req: Request) {
     thumbKey: mp4ToThumbKey(key),
   }));
 
-  return NextResponse.json(clips);
+  return NextResponse.json(clips, {
+    headers: {
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+    },
+  });
 }
