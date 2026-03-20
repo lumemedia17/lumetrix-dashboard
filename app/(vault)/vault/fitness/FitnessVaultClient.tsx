@@ -23,9 +23,10 @@ export default function FitnessVaultClient() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/vault/fitness?category=${encodeURIComponent(category)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/vault/fitness?category=${encodeURIComponent(category)}`,
+          { cache: "no-store" }
+        );
         const data = await res.json();
         setClips(Array.isArray(data) ? data : []);
       } finally {
@@ -36,20 +37,35 @@ export default function FitnessVaultClient() {
   }, [category]);
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 py-8">
-      <Link href="/vault/all" className="text-yellow-400 text-sm">
-        ← Back to All Access
-      </Link>
+    <div className="space-y-8">
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.14),transparent_35%),#000] p-8 md:p-10">
+        <Link href="/vault/all" className="text-sm text-[#D4AF37] hover:text-[#F1D27A]">
+          ← Back to All Access
+        </Link>
 
-      <h1 className="text-4xl font-extrabold my-6">Fitness Vault</h1>
+        <div className="mt-6 max-w-3xl">
+          <p className="mb-4 text-sm font-bold uppercase tracking-[0.22em] text-[#D4AF37]">
+            Performance Collection
+          </p>
+          <h1 className="text-4xl font-black tracking-tight md:text-6xl">
+            Fitness Vault
+          </h1>
+          <p className="mt-4 text-base text-[#B3B3B3] md:text-lg">
+            Dynamic visual assets for gyms, trainers, athletic brands, wellness content,
+            cardio campaigns, transformation reels, and performance-focused edits.
+          </p>
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-3 mb-8">
+      <div className="flex flex-wrap gap-3">
         {CATEGORIES.map((c) => (
           <button
             key={c.value}
             onClick={() => setCategory(c.value)}
-            className={`px-5 py-2 rounded-full ${
-              category === c.value ? "bg-yellow-400 text-black" : "border border-neutral-700"
+            className={`rounded-full px-5 py-3 text-sm font-bold transition-all ${
+              category === c.value
+                ? "bg-[#D4AF37] text-black shadow-lg shadow-[#D4AF37]/20"
+                : "border border-white/10 bg-white/[0.02] text-white/80 hover:border-[#D4AF37]/30 hover:text-white"
             }`}
           >
             {c.label}
@@ -58,9 +74,11 @@ export default function FitnessVaultClient() {
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-[#B3B3B3]">
+          Loading clips...
+        </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {clips.map((clip) => (
             <VaultClipCard key={clip.key} clip={clip} />
           ))}
