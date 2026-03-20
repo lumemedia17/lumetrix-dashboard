@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabaseBrowser as supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { supabaseBrowser as supabase } from "@/lib/supabaseClient";
 import VaultClipCard, { VaultClip } from "@/components/VaultClipCard";
 
 type VaultPreview = {
@@ -17,7 +17,8 @@ const VAULTS: VaultPreview[] = [
   {
     title: "Luxury Vault",
     slug: "luxury",
-    description: "Automotive, jets, interiors, lifestyle, leisure, textures, and premium backgrounds.",
+    description:
+      "Automotive, jets, interiors, lifestyle, leisure, textures, and premium backgrounds.",
     previewPrefixes: [
       "luxury/cars/",
       "luxury/jets/",
@@ -31,7 +32,8 @@ const VAULTS: VaultPreview[] = [
   {
     title: "Real Estate Vault",
     slug: "real-estate",
-    description: "Agents, homes, interiors, neighborhoods, investments, urban scenes, and transitions.",
+    description:
+      "Agents, homes, interiors, neighborhoods, investments, urban scenes, and transitions.",
     previewPrefixes: [
       "real-estate/agents/",
       "real-estate/homes/",
@@ -41,7 +43,8 @@ const VAULTS: VaultPreview[] = [
   {
     title: "Fitness Vault",
     slug: "fitness",
-    description: "Cardio, gym, lifestyle, wellness, nutrition, textures, and transitions.",
+    description:
+      "Cardio, gym, lifestyle, wellness, nutrition, textures, and transitions.",
     previewPrefixes: [
       "fitness/cardio/",
       "fitness/gym/",
@@ -49,6 +52,28 @@ const VAULTS: VaultPreview[] = [
     ],
   },
 ];
+
+function mp4ToThumbKey(mp4Key: string) {
+  if (mp4Key.startsWith("luxury/")) {
+    return mp4Key
+      .replace(/^luxury\//, "thumbs/luxury/")
+      .replace(/\.mp4$/i, ".jpg");
+  }
+
+  if (mp4Key.startsWith("real-estate/")) {
+    return mp4Key
+      .replace(/^real-estate\//, "thumbs/real-estate/")
+      .replace(/\.mp4$/i, ".jpg");
+  }
+
+  if (mp4Key.startsWith("fitness/")) {
+    return mp4Key
+      .replace(/^fitness\//, "thumbs/fitness/")
+      .replace(/\.mp4$/i, ".jpg");
+  }
+
+  return mp4Key.replace(/\.mp4$/i, ".jpg");
+}
 
 export default function AllAccessVaultClient() {
   const router = useRouter();
@@ -80,14 +105,14 @@ export default function AllAccessVaultClient() {
 
           if (!res.ok) continue;
 
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
           const firstKey = data?.keys?.[0];
 
           if (firstKey) {
             found = {
               key: firstKey,
               name: firstKey.split("/").pop() ?? "Clip",
-              thumbKey: firstKey,
+              thumbKey: mp4ToThumbKey(firstKey),
             };
             break;
           }
