@@ -1,46 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
-  const router = useRouter();
-
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    const prefill = params.get("prefill");
-
-    if (prefill) {
-      setEmail(prefill);
-    }
-  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
-    const { error } = await supabaseBrowser.auth.signInWithPassword({
-      email,
-      password,
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/reset-password`
+        : "https://app.lumetrixmedia.com/reset-password";
+
+    const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email, {
+      redirectTo,
     });
 
     if (error) {
-      setError("Invalid email or password");
+      setError(error.message || "Could not send reset email.");
       setLoading(false);
       return;
     }
 
-    router.replace("/vault/all");
+    setSuccess("Password reset email sent. Check your inbox.");
+    setLoading(false);
   }
 
   return (
@@ -52,8 +44,10 @@ export default function LoginPage() {
               <span className="text-2xl font-black text-[#D4AF37]">L</span>
             </div>
 
-            <h1 className="mb-2 text-4xl font-black">Welcome Back</h1>
-            <p className="text-[#B3B3B3]">Sign in to access your vaults</p>
+            <h1 className="mb-2 text-4xl font-black">Reset Password</h1>
+            <p className="text-[#B3B3B3]">
+              Enter your email and we’ll send you a secure reset link.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -63,10 +57,15 @@ export default function LoginPage() {
               </div>
             )}
 
+            {success && (
+              <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/10 p-4 text-sm text-[#F1D27A]">
+                {success}
+              </div>
+            )}
+
             <div>
               <label className="mb-2 block text-sm font-bold">Email</label>
               <input
-                name="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -76,42 +75,20 @@ export default function LoginPage() {
               />
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="block text-sm font-bold">Password</label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-[#B3B3B3] transition-colors hover:text-[#D4AF37]"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <input
-                name="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white transition-colors focus:border-[#D4AF37]/50 focus:outline-none"
-              />
-            </div>
-
             <button
               type="submit"
               disabled={loading}
               className="w-full rounded-full bg-[#D4AF37] px-6 py-4 text-black font-black shadow-xl shadow-[#D4AF37]/40 transition-all duration-300 hover:bg-[#F1D27A] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Signing In..." : "Log In"}
+              {loading ? "Sending..." : "Send Reset Link"}
             </button>
 
             <div className="text-center">
               <Link
-                href="https://lumetrixmedia.com"
+                href="/login"
                 className="text-sm text-[#B3B3B3] transition-colors hover:text-white"
               >
-                ← Back to home
+                ← Back to login
               </Link>
             </div>
           </form>

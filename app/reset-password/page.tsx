@@ -5,42 +5,69 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    async function checkSession() {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
 
-    const params = new URLSearchParams(window.location.search);
-    const prefill = params.get("prefill");
-
-    if (prefill) {
-      setEmail(prefill);
+      if (session) {
+        setReady(true);
+      } else {
+        setError("This reset link is invalid or expired.");
+      }
     }
+
+    checkSession();
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setSuccess("");
+
+    if (!ready) {
+      setError("This reset link is invalid or expired.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
 
-    const { error } = await supabaseBrowser.auth.signInWithPassword({
-      email,
+    const { error } = await supabaseBrowser.auth.updateUser({
       password,
     });
 
     if (error) {
-      setError("Invalid email or password");
+      setError(error.message || "Could not update password.");
       setLoading(false);
       return;
     }
 
-    router.replace("/vault/all");
+    setSuccess("Password updated successfully. Redirecting to login...");
+
+    setTimeout(() => {
+      router.replace("/login");
+    }, 1500);
   }
 
   return (
@@ -52,8 +79,10 @@ export default function LoginPage() {
               <span className="text-2xl font-black text-[#D4AF37]">L</span>
             </div>
 
-            <h1 className="mb-2 text-4xl font-black">Welcome Back</h1>
-            <p className="text-[#B3B3B3]">Sign in to access your vaults</p>
+            <h1 className="mb-2 text-4xl font-black">Choose New Password</h1>
+            <p className="text-[#B3B3B3]">
+              Enter your new password below.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -63,55 +92,52 @@ export default function LoginPage() {
               </div>
             )}
 
+            {success && (
+              <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/10 p-4 text-sm text-[#F1D27A]">
+                {success}
+              </div>
+            )}
+
             <div>
-              <label className="mb-2 block text-sm font-bold">Email</label>
+              <label className="mb-2 block text-sm font-bold">New Password</label>
               <input
-                name="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
-                placeholder="your@email.com"
+                minLength={8}
+                placeholder="Minimum 8 characters"
                 className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white transition-colors focus:border-[#D4AF37]/50 focus:outline-none"
               />
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="block text-sm font-bold">Password</label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-[#B3B3B3] transition-colors hover:text-[#D4AF37]"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
+              <label className="mb-2 block text-sm font-bold">Confirm Password</label>
               <input
-                name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                placeholder="••••••••"
+                minLength={8}
+                placeholder="Confirm your password"
                 className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white transition-colors focus:border-[#D4AF37]/50 focus:outline-none"
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !ready}
               className="w-full rounded-full bg-[#D4AF37] px-6 py-4 text-black font-black shadow-xl shadow-[#D4AF37]/40 transition-all duration-300 hover:bg-[#F1D27A] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Signing In..." : "Log In"}
+              {loading ? "Updating..." : "Update Password"}
             </button>
 
             <div className="text-center">
               <Link
-                href="https://lumetrixmedia.com"
+                href="/login"
                 className="text-sm text-[#B3B3B3] transition-colors hover:text-white"
               >
-                ← Back to home
+                ← Back to login
               </Link>
             </div>
           </form>
