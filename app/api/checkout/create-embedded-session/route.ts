@@ -3,6 +3,11 @@ import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
+  checkoutCorsHeaders,
+  getCheckoutPageOrigin,
+  isAllowedCheckoutOrigin,
+} from "@/lib/checkoutOrigins";
+import {
   PLAN_DETAILS,
   normalizePlan,
   sanitizeAttribution,
@@ -18,24 +23,6 @@ const CHECKOUT_UI_MODE = "embedded" as const;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: STRIPE_API_VERSION,
 });
-
-const LOCAL_ORIGINS = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
-
-function appOrigin() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || "https://app.lumetrixmedia.com";
-
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return "https://app.lumetrixmedia.com";
-  }
-}
-
-function isAllowedOrigin(origin: string | null) {
-  if (!origin) return true;
-
-  return origin === appOrigin() || LOCAL_ORIGINS.has(origin);
-}
 
 function getPriceId(plan: PlanKey) {
   const envKey = PLAN_DETAILS[plan].envKey;
@@ -109,21 +96,83 @@ async function getVerifiedProfile() {
   };
 }
 
-function safeError(message: string, status = 400, code = "checkout_error") {
+function safeError(
+  origin: string | null,
+  message: string,
+  status = 400,
+  code = "checkout_error"
+) {
   return NextResponse.json(
     {
       error: message,
       code,
     },
-    { status }
+    {
+      status,
+      headers: checkoutCorsHeaders(origin),
+    }
+  );
+}
+
+export function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get("origin");
+
+  if (!isAllowedCheckoutOrigin(origin)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
+  return new NextResponse(null, {
+    status: 204,
+    headers: checkoutCorsHeaders(origin),
+  });
+}
+
+export function GET(req: NextRequest) {
+  const origin = req.headers.get("origin");
+
+  if (!isAllowedCheckoutOrigin(origin)) {
+    return safeError(
+      origin,
+      "Checkout is only available from Lumetrix.",
+      403,
+      "origin_not_allowed"
+    );
+  }
+
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+  if (!publishableKey?.startsWith("pk_")) {
+    return safeError(
+      origin,
+      "Checkout configuration is unavailable.",
+      500,
+      "checkout_config_unavailable"
+    );
+  }
+
+  return NextResponse.json(
+    {
+      publishable_key: publishableKey,
+    },
+    {
+      headers: {
+        ...checkoutCorsHeaders(origin),
+        "Cache-Control": "no-store",
+      },
+    }
   );
 }
 
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
 
-  if (!isAllowedOrigin(origin)) {
-    return safeError("Checkout is only available from the Lumetrix app.", 403, "origin_not_allowed");
+  if (!isAllowedCheckoutOrigin(origin)) {
+    return safeError(
+      origin,
+      "Checkout is only available from Lumetrix.",
+      403,
+      "origin_not_allowed"
+    );
   }
 
   try {
@@ -131,7 +180,12 @@ export async function POST(req: NextRequest) {
     const plan = normalizePlan(body?.plan);
 
     if (!plan) {
-      return safeError("Choose a valid Lumetrix plan.", 400, "invalid_plan");
+      return safeError(
+        origin,
+        "Choose a valid Lumetrix plan.",
+        400,
+        "invalid_plan"
+      );
     }
 
     const priceId = getPriceId(plan);
@@ -141,6 +195,7 @@ export async function POST(req: NextRequest) {
 
     if (profile?.is_active) {
       return safeError(
+        origin,
         "This account already has active Lumetrix access. Open your dashboard or manage billing from Account.",
         409,
         "active_subscription"
@@ -161,7 +216,7 @@ export async function POST(req: NextRequest) {
       attribution,
     });
 
-    const appUrl = appOrigin();
+    const checkoutPageOrigin = getCheckoutPageOrigin(origin);
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: "subscription",
       ui_mode: CHECKOUT_UI_MODE,
@@ -173,7 +228,7 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      return_url: `${appUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      return_url: `${checkoutPageOrigin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       metadata,
       client_reference_id: verifiedUserId ?? checkoutAttemptId,
       subscription_data: {
@@ -193,18 +248,22 @@ export async function POST(req: NextRequest) {
       throw new Error("Embedded Checkout Session did not include a client secret.");
     }
 
-    return NextResponse.json({
-      client_secret: session.client_secret,
-    });
+    return NextResponse.json(
+      {
+        client_secret: session.client_secret,
+      },
+      {
+        headers: checkoutCorsHeaders(origin),
+      }
+    );
   } catch (err) {
     console.error("Embedded checkout session error:", err);
 
-    return NextResponse.json(
-      {
-        error: "Checkout could not start. Please retry from the Lumetrix checkout page.",
-        code: "embedded_checkout_failed",
-      },
-      { status: 500 }
+    return safeError(
+      origin,
+      "Checkout could not start. Please retry from the Lumetrix checkout page.",
+      500,
+      "embedded_checkout_failed"
     );
   }
 }

@@ -1,6 +1,12 @@
 import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  checkoutCorsHeaders,
+  getAppOrigin,
+  getCheckoutPageOrigin,
+  isAllowedCheckoutOrigin,
+} from "@/lib/checkoutOrigins";
 import { getRedirectPath, normalizePlan, type PlanKey } from "@/lib/plans";
 
 export const runtime = "nodejs";
@@ -22,16 +28,6 @@ const supabaseAdmin = createClient(
   }
 );
 
-function appOrigin() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || "https://app.lumetrixmedia.com";
-
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return "https://app.lumetrixmedia.com";
-  }
-}
-
 function isPlausibleSessionId(sessionId: string) {
   return /^cs_(test|live)_[a-zA-Z0-9_]+$/.test(sessionId) && sessionId.length < 220;
 }
@@ -50,15 +46,49 @@ async function getPendingPurchase(sessionId: string) {
   return data;
 }
 
-function response(payload: Record<string, unknown>, status = 200) {
-  return NextResponse.json(payload, { status });
+function response(
+  origin: string | null,
+  payload: Record<string, unknown>,
+  status = 200
+) {
+  return NextResponse.json(payload, {
+    status,
+    headers: checkoutCorsHeaders(origin),
+  });
+}
+
+export function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get("origin");
+
+  if (!isAllowedCheckoutOrigin(origin)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
+  return new NextResponse(null, {
+    status: 204,
+    headers: checkoutCorsHeaders(origin),
+  });
 }
 
 export async function GET(req: NextRequest) {
+  const origin = req.headers.get("origin");
+
+  if (!isAllowedCheckoutOrigin(origin)) {
+    return response(
+      origin,
+      {
+        state: "invalid",
+        message: "We could not verify this checkout.",
+      },
+      403
+    );
+  }
+
   const sessionId = req.nextUrl.searchParams.get("session_id")?.trim();
 
   if (!sessionId || !isPlausibleSessionId(sessionId)) {
     return response(
+      origin,
       {
         state: "invalid",
         message: "We could not verify this checkout.",
@@ -68,6 +98,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const appOrigin = getAppOrigin();
+    const checkoutPageOrigin = getCheckoutPageOrigin(origin);
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const plan =
       normalizePlan(session.metadata?.plan) ||
@@ -82,13 +114,15 @@ export async function GET(req: NextRequest) {
       (session.payment_status === "paid" || session.mode === "subscription");
 
     if (!paymentConfirmed) {
-      return response({
+      return response(origin, {
         state: "incomplete",
         message: "Checkout was not completed.",
         session_status: session.status,
         payment_status: session.payment_status,
         plan,
-        retry_url: plan ? `${appOrigin()}/checkout?plan=${plan}` : `${appOrigin()}/pricing`,
+        retry_url: plan
+          ? `${checkoutPageOrigin}/checkout?plan=${plan}`
+          : `${checkoutPageOrigin}/`,
       });
     }
 
@@ -100,28 +134,29 @@ export async function GET(req: NextRequest) {
         : session.customer_details?.email ?? session.customer_email ?? null;
 
     if (pending?.completed_at || pending?.status === "completed") {
-      return response({
+      return response(origin, {
         state: "account_active",
         message: "Your Lumetrix access is ready.",
         plan: pendingPlan,
         email: safeEmail,
-        dashboard_url: `${appOrigin()}${getRedirectPath(pendingPlan as PlanKey)}`,
-        login_url: `${appOrigin()}/login${safeEmail ? `?prefill=${encodeURIComponent(safeEmail)}` : ""}`,
+        dashboard_url: `${appOrigin}${getRedirectPath(pendingPlan as PlanKey)}`,
+        login_url: `${appOrigin}/login${safeEmail ? `?prefill=${encodeURIComponent(safeEmail)}` : ""}`,
       });
     }
 
-    return response({
+    return response(origin, {
       state: "activation_pending",
       message: "Payment confirmed. Your account is being activated.",
       plan: pendingPlan,
       email: safeEmail,
-      finish_setup_url: `${appOrigin()}/finish-setup?session_id=${encodeURIComponent(sessionId)}`,
-      login_url: `${appOrigin()}/login${safeEmail ? `?prefill=${encodeURIComponent(safeEmail)}` : ""}`,
+      finish_setup_url: `${appOrigin}/finish-setup?session_id=${encodeURIComponent(sessionId)}`,
+      login_url: `${appOrigin}/login${safeEmail ? `?prefill=${encodeURIComponent(safeEmail)}` : ""}`,
     });
   } catch (err) {
     console.error("Checkout return verification error:", err);
 
     return response(
+      origin,
       {
         state: "invalid",
         message: "We could not verify this checkout.",
