@@ -8,17 +8,17 @@ const STORAGE_KEY = "lumetrix_favorites";
 export type FavoriteKey = string;
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<FavoriteKey[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteKey[]>(() => {
+    if (typeof window === "undefined") return [];
 
-  // load from localStorage on mount
-  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setFavorites(JSON.parse(raw));
+      return raw ? JSON.parse(raw) : [];
     } catch (e) {
       console.warn("Failed to load favorites", e);
+      return [];
     }
-  }, []);
+  });
 
   // save whenever favorites change
   useEffect(() => {

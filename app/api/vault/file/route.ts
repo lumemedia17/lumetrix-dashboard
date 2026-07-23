@@ -54,8 +54,9 @@ export async function GET(req: NextRequest) {
         "Cache-Control": "public, max-age=900, s-maxage=900, stale-while-revalidate=86400",
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("S3 error:", e);
-    return new Response(e?.message || "Failed to get file", { status: 500 });
+    const message = e instanceof Error ? e.message : "Failed to get file";
+    return new Response(message, { status: 500 });
   }
 }

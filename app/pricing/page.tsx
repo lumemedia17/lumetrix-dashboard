@@ -1,61 +1,16 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 type PlanKey = "all" | "luxury" | "real-estate" | "fitness";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-async function startCheckout(plan: PlanKey) {
-  try {
-    // Get the logged-in user from Supabase (browser)
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-
-    if (error || !user) {
-      alert("Please log in first.");
-      window.location.href = "/login";
-      return;
-    }
-
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        plan,
-        userId: user.id,
-        email: user.email,
-      }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Checkout error:", text);
-      alert("There was a problem starting checkout. Are you logged in?");
-      return;
-    }
-
-    const data = await res.json();
-
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert("No checkout URL returned.");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Unexpected error starting checkout.");
-  }
-}
-
 export default function PricingPage() {
+  const router = useRouter();
+
+  function startCheckout(plan: PlanKey) {
+    router.push(`/checkout?plan=${plan}`);
+  }
+
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-4 py-10">
       <h1 className="text-3xl font-bold mb-2 text-center">Lumetrix Pricing</h1>
@@ -70,15 +25,15 @@ export default function PricingPage() {
           <p className="text-4xl font-bold mb-2">$199</p>
           <p className="text-sm text-neutral-400 mb-4">per month</p>
           <ul className="text-sm text-neutral-300 mb-6 space-y-1 text-center">
-            <li>✓ Luxury Vault</li>
-            <li>✓ Real Estate Vault</li>
-            <li>✓ Fitness &amp; Wellness Vault</li>
+            <li>Luxury Vault</li>
+            <li>Real Estate Vault</li>
+            <li>Fitness &amp; Wellness Vault</li>
           </ul>
           <button
             onClick={() => startCheckout("all")}
             className="px-6 py-2 rounded-full bg-yellow-400 text-black font-semibold"
           >
-            Get All Access – $199/mo
+            Get All Access - $199/mo
           </button>
         </div>
 
@@ -94,7 +49,7 @@ export default function PricingPage() {
             onClick={() => startCheckout("luxury")}
             className="px-6 py-2 rounded-full bg-neutral-100 text-black font-semibold"
           >
-            Get Luxury – $99/mo
+            Get Luxury - $99/mo
           </button>
         </div>
 
@@ -111,7 +66,7 @@ export default function PricingPage() {
             onClick={() => startCheckout("real-estate")}
             className="px-6 py-2 rounded-full bg-neutral-100 text-black font-semibold"
           >
-            Get Real Estate – $99/mo
+            Get Real Estate - $99/mo
           </button>
         </div>
 
@@ -127,7 +82,7 @@ export default function PricingPage() {
             onClick={() => startCheckout("fitness")}
             className="px-6 py-2 rounded-full bg-neutral-100 text-black font-semibold"
           >
-            Get Fitness – $99/mo
+            Get Fitness - $99/mo
           </button>
         </div>
       </div>

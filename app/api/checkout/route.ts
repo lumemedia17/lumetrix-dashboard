@@ -108,12 +108,13 @@ export async function POST(req: Request) {
       { url: session.url },
       { headers: corsHeaders(origin) }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Checkout Error:", err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
 
     return NextResponse.json(
       {
-        error: err.message ?? "Unknown server error",
+        error: message,
       },
       {
         status: 500,
