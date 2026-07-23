@@ -11,7 +11,7 @@ import {
   type SafeAttribution,
 } from "@/lib/plans";
 
-type CheckoutStatus = "idle" | "loading" | "ready" | "error";
+type CheckoutStatus = "idle" | "loading" | "ready" | "active" | "error";
 
 const ATTRIBUTION_STORAGE_KEY = "lumetrix_checkout_attribution";
 const clientSecretRequests = new Map<string, Promise<string>>();
@@ -157,6 +157,12 @@ export default function CheckoutClient({
         embeddedCheckout.mount("#lumetrix-embedded-checkout");
         setStatus("ready");
       } catch (err) {
+        if (err instanceof Error && err.message === "active_subscription") {
+          mountedRef.current = false;
+          setStatus("active");
+          return;
+        }
+
         console.error("Embedded checkout load failed:", err);
         mountedRef.current = false;
         setStatus("error");
@@ -250,6 +256,29 @@ export default function CheckoutClient({
         )}
 
         <section className="rounded-[28px] border border-white/10 bg-black p-3 sm:p-5">
+          {status === "active" && (
+            <div className="rounded-2xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 p-5">
+              <h2 className="text-2xl font-black">Your Lumetrix access is already active.</h2>
+              <p className="mt-3 text-sm leading-6 text-[#F1D27A]/80">
+                This account already has an active subscription, so another checkout was not started.
+              </p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/dashboard"
+                  className="rounded-full bg-[#D4AF37] px-5 py-3 text-center text-sm font-black text-black transition hover:bg-[#F1D27A]"
+                >
+                  Open dashboard
+                </Link>
+                <Link
+                  href="/account"
+                  className="rounded-full border border-white/15 px-5 py-3 text-center text-sm font-black text-white transition hover:border-white/40"
+                >
+                  Manage subscription
+                </Link>
+              </div>
+            </div>
+          )}
+
           {status === "error" && (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
               <h2 className="text-2xl font-black">Checkout could not load.</h2>
@@ -284,7 +313,7 @@ export default function CheckoutClient({
           <div
             id="lumetrix-embedded-checkout"
             className={`min-h-[680px] w-full overflow-hidden rounded-2xl bg-white ${
-              status === "error" ? "hidden" : "block"
+              status === "active" || status === "error" ? "hidden" : "block"
             }`}
           />
 
