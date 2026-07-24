@@ -111,9 +111,11 @@ function getClientSecretOnce(plan: PlanKey, attribution: SafeAttribution, attemp
 export default function CheckoutClient({
   plan,
   checkoutUrl,
+  testMode,
 }: {
   plan: PlanKey;
   checkoutUrl: string;
+  testMode: boolean;
 }) {
   const planDetails = PLAN_DETAILS[plan];
   const checkoutRef = useRef<StripeEmbeddedCheckout | null>(null);
@@ -144,7 +146,7 @@ export default function CheckoutClient({
           throw new Error("stripe_js_unavailable");
         }
 
-        const embeddedCheckout = await stripe.initEmbeddedCheckout({
+        const embeddedCheckout = await stripe.createEmbeddedCheckoutPage({
           fetchClientSecret: () => getClientSecretOnce(plan, attribution, attempt),
         });
 
@@ -200,6 +202,15 @@ export default function CheckoutClient({
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050505] px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+        {testMode && (
+          <div
+            role="status"
+            className="rounded-2xl border-2 border-amber-300 bg-amber-300 px-5 py-4 text-center text-sm font-black tracking-[0.2em] text-black shadow-lg shadow-amber-300/20"
+          >
+            TEST MODE — NO REAL CHARGES
+          </div>
+        )}
+
         <header className="text-center">
           <Link
             href="/pricing"

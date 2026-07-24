@@ -9,6 +9,20 @@ const LOCAL_APP_ORIGINS = new Set([
 ]);
 
 export function getAppOrigin() {
+  const isTestMode =
+    process.env.STRIPE_ENVIRONMENT === "test" &&
+    process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true";
+  const vercelUrl =
+    process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+
+  if (isTestMode && vercelUrl) {
+    try {
+      return new URL(`https://${vercelUrl}`).origin;
+    } catch {
+      // Fall through to the configured app URL.
+    }
+  }
+
   const configured =
     process.env.NEXT_PUBLIC_APP_URL || "https://app.lumetrixmedia.com";
 

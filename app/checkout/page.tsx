@@ -12,6 +12,20 @@ import {
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function appOrigin() {
+  const isTestMode =
+    process.env.STRIPE_ENVIRONMENT === "test" &&
+    process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true";
+  const vercelUrl =
+    process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+
+  if (isTestMode && vercelUrl) {
+    try {
+      return new URL(`https://${vercelUrl}`).origin;
+    } catch {
+      // Fall through to the configured app URL.
+    }
+  }
+
   const configured = process.env.NEXT_PUBLIC_APP_URL || "https://app.lumetrixmedia.com";
 
   try {
@@ -43,6 +57,11 @@ export default async function CheckoutPage({
   const params = await searchParams;
   const plan = normalizePlan(firstParam(params.plan));
   const attribution = sanitizeAttribution(params);
+  const testMode =
+    process.env.STRIPE_ENVIRONMENT === "test" &&
+    process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true" &&
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith("pk_test_") ===
+      true;
 
   if (!plan) {
     return (
@@ -84,6 +103,7 @@ export default async function CheckoutPage({
     <CheckoutClient
       plan={plan}
       checkoutUrl={buildCheckoutUrl(plan, attribution)}
+      testMode={testMode}
     />
   );
 }

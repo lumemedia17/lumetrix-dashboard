@@ -24,6 +24,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: STRIPE_API_VERSION,
 });
 
+function assertStripeEnvironment() {
+  const testMode =
+    process.env.STRIPE_ENVIRONMENT === "test" ||
+    process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true";
+
+  if (!testMode) return;
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+  if (
+    !secretKey?.startsWith("sk_test_") ||
+    !publishableKey?.startsWith("pk_test_")
+  ) {
+    throw new Error(
+      "Stripe test mode requires matching test-mode secret and publishable keys."
+    );
+  }
+}
+
 function getPriceId(plan: PlanKey) {
   const envKey = PLAN_DETAILS[plan].envKey;
   const priceId = process.env[envKey];
@@ -139,6 +159,17 @@ export function GET(req: NextRequest) {
     );
   }
 
+  try {
+    assertStripeEnvironment();
+  } catch {
+    return safeError(
+      origin,
+      "Checkout configuration is unavailable.",
+      500,
+      "checkout_config_unavailable"
+    );
+  }
+
   const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   if (!publishableKey?.startsWith("pk_")) {
@@ -176,6 +207,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    assertStripeEnvironment();
+
     const body = await req.json().catch(() => ({}));
     const plan = normalizePlan(body?.plan);
 
